@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stream Overlay – Song Requests</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <style>
+    /* Overlay Specific Overrides */
+    body {
+      background: transparent !important;
+      overflow: hidden;
+      padding: 1rem;
+    }
+    #app {
+      background: transparent !important;
+      box-shadow: none !important;
+      max-width: 400px; /* Slim for side placement */
+      margin: 0;
+    }
+    .now-playing-card {
+      background: rgba(10, 10, 15, 0.9);
+      border: 2px solid var(--accent);
+      box-shadow: 0 0 20px rgba(255, 60, 110, 0.3);
+      padding: 1.5rem;
+    }
+    .np-title {
+      font-size: 1.75rem;
+      line-height: 1.1;
+    }
+    .np-artist {
+      font-size: 1.1rem;
+      margin-top: 0.25rem;
+    }
+    .queue-list {
+      background: rgba(10, 10, 15, 0.7);
+      border-radius: var(--radius-md);
+      padding: 0.5rem;
+      margin-top: 1rem;
+    }
+    .song-card {
+      background: rgba(255,255,255,0.05);
+      border: none;
+      margin-bottom: 0.4rem;
+      padding: 0.6rem 0.875rem;
+    }
+    .song-title { font-size: 0.9rem; }
+    .song-num { width: 24px; height: 24px; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+
+<div id="app">
+  <!-- Status Indicator (Subtle) -->
+  <div style="display:flex; justify-content:flex-end; margin-bottom:0.5rem;">
+    <span class="badge badge-red" style="font-size:0.65rem; padding:0.1rem 0.4rem;">
+      <span class="live-dot" style="width:4px; height:4px;"></span> RECORDING
+    </span>
+  </div>
+
+  <!-- Big Now Playing -->
+  <div class="now-playing-card">
+    <div class="np-label">
+      <div class="soundwave"><span></span><span></span><span></span><span></span><span></span></div>
+      PLAYING
+    </div>
+    <div class="np-title" id="np-title">Warming up…</div>
+    <div class="np-artist" id="np-artist">Stay tuned</div>
+    <div class="np-requester" id="np-requester" style="font-size:0.85rem; color:var(--accent2); margin-top:0.5rem; font-weight:700;"></div>
+  </div>
+
+  <!-- Slim Queue -->
+  <div class="queue-list" id="overlay-queue">
+    <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:0.5rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em;">Up Next:</div>
+    <div id="queue-items">
+      <!-- Items will appear here -->
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+  function bootOverlayPage() {
+    initSupabase();
+    
+    // Subscribe to Queue
+    DB.onQueueChange(items => {
+      const queued = items.filter(i => i.status === "approved");
+      
+      // Update Now Playing (Item #1)
+      const npTitle = document.getElementById("np-title");
+      const npArtist = document.getElementById("np-artist");
+      const npReq = document.getElementById("np-requester");
+
+      if (queued.length > 0) {
+        npTitle.textContent = queued[0].song;
+        npArtist.textContent = queued[0].artist || "—";
+        npReq.textContent = `@${queued[0].requester}`;
+        
+        // Render Remaining Queue
+        renderOverlayQueue(queued.slice(1, 4)); // Show next 3
+      } else {
+        npTitle.textContent = "Warming up…";
+        npArtist.textContent = "Stay tuned";
+        npReq.textContent = "";
+        renderOverlayQueue([]);
+      }
+    });
+  }
+
+  function renderOverlayQueue(items) {
+    const container = document.getElementById("queue-items");
+    container.innerHTML = "";
+    
+    if (items.length === 0) {
+      container.innerHTML = '<div style="font-size:0.8rem; color:var(--text-dimmer);">No songs in queue</div>';
+      return;
+    }
+
+    items.forEach((item, i) => {
+      const card = document.createElement("div");
+      card.className = "song-card";
+      card.innerHTML = `
+        <div style="display:flex; align-items:center; gap:0.75rem;">
+          <div class="song-num">${i + 2}</div>
+          <div style="flex:1; min-width:0;">
+            <div class="song-title" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.song}</div>
+            <div style="font-size:0.7rem; color:var(--text-dim);">@${item.requester}</div>
+          </div>
+        </div>
+      `;
+      container.appendChild(card);
+    });
+  }
+
+  // Load
+  window.addEventListener("DOMContentLoaded", bootOverlayPage);
+</script>
+</body>
+</html>
