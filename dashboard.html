@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Spencer Dashboard</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"
+          onerror="this.onerror=null;this.src='https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.min.js';"></script>
+  <style>
+    .req-card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 1rem 1.1rem;
+      transition: var(--transition);
+      animation: slideIn 0.25s ease both;
+    }
+    .req-card:hover { background: rgba(255,255,255,0.07); }
+    .req-header { display:flex; align-items:flex-start; justify-content:space-between; gap:0.75rem; margin-bottom:0.6rem; }
+    .req-song { font-size:1rem; font-weight:700; }
+    .req-artist { font-size:0.82rem; color:var(--text-dim); }
+    .req-meta { display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; margin-top:0.4rem; }
+    .req-actions { display:flex; gap:0.4rem; flex-wrap:wrap; margin-top:0.75rem; }
+
+    /* Approved / Queue card */
+    .queue-item {
+      display:flex;
+      align-items:center;
+      gap:0.875rem;
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 0.875rem 1rem;
+      cursor:default;
+      animation: slideIn 0.25s ease both;
+      transition: var(--transition);
+    }
+    .queue-item.pinned-item { border-color: rgba(251,191,36,0.4); background: rgba(251,191,36,0.05); }
+    .queue-item:hover { background: rgba(255,255,255,0.07); }
+
+    /* History card */
+    .hist-card {
+      display:flex;
+      align-items:center;
+      gap:0.875rem;
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 0.75rem 1rem;
+      animation: fadeIn 0.25s ease both;
+    }
+
+    /* Panel sections */
+    .panel { display:none; padding:1.25rem; }
+    .panel.active { display:block; }
+    @media(max-width:768px) {
+      .panel { padding-bottom: 90px; }
+    }
+
+    /* Settings toggle row */
+    .setting-row {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:1rem;
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-sm);
+      margin-bottom:0.75rem;
+    }
+    .setting-label strong { display:block; font-size:0.9rem; }
+    .setting-label span { font-size:0.78rem; color:var(--text-dim); }
+
+    /* Now Playing big edit box */
+    .np-edit-card {
+      background: linear-gradient(135deg, rgba(254,44,85,0.12), rgba(37,244,238,0.07));
+      border: 1px solid rgba(254,44,85,0.25);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      margin-bottom:1rem;
+    }
+
+    /* Search history */
+    .search-filter-row { display:flex; gap:0.5rem; margin-bottom:0.875rem; flex-wrap:wrap; }
+    .filter-chip {
+      padding:0.35rem 0.85rem;
+      border-radius:100px;
+      border:1px solid var(--card-border);
+      background:var(--card);
+      color:var(--text-dim);
+      font-size:0.78rem;
+      font-weight:600;
+      cursor:pointer;
+      transition:var(--transition);
+      font-family:inherit;
+    }
+    .filter-chip.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+
+    /* Scroll container */
+    .scroll-area { max-height: calc(100vh - 280px); overflow-y:auto; display:flex; flex-direction:column; gap:0.6rem; }
+    @media(max-width:768px) { .scroll-area { max-height:none; } }
+  </style>
+</head>
+<body>
+
+<!-- ── LOGIN SCREEN ────────────────────────────────────────── -->
+<div id="login-screen" style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:1.5rem;background:var(--bg);">
+  <div style="width:100%;max-width:360px;">
+    <div style="text-align:center;margin-bottom:2rem;">
+      <div style="font-size:3rem;margin-bottom:1rem;">🎸</div>
+      <h1 style="font-size:1.8rem;margin-bottom:0.5rem;font-weight:800;letter-spacing:-0.02em;">Admin Login</h1>
+      <p style="color:var(--text-dim);font-size:0.95rem;">Enter password to manage requests</p>
+    </div>
+    <div class="card card-pad" style="box-shadow: 0 20px 40px rgba(0,0,0,0.4);">
+      <div class="form-group" style="margin-bottom:1.25rem;">
+        <label for="login-pw" style="font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-dim);">Password</label>
+        <input type="password" id="login-pw" placeholder="••••••••" autofocus
+               style="font-size:1.1rem;padding:0.75rem;margin-top:0.4rem;"
+               onkeydown="if(event.key==='Enter')doLogin()" />
+      </div>
+      <button class="btn btn-primary btn-full" onclick="doLogin()" style="padding:0.8rem;font-weight:700;">
+        Unlock Dashboard
+      </button>
+      <p id="login-error-msg" style="display:none; color:#ff4d4d; font-size:0.85rem; text-align:center; margin-top:1rem; font-weight:500;">
+        ❌ Incorrect password. Please try again.
+      </p>
+    </div>
+    <div style="text-align:center;margin-top:2rem;">
+      <a href="index.html" style="color:var(--text-dim);font-size:0.85rem;text-decoration:none;opacity:0.6;transition:0.2s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">← Back to Live Page</a>
+    </div>
+  </div>
+</div>
+
+<!-- ── MAIN DASHBOARD ──────────────────────────────────────── -->
+<div id="dashboard" style="display:none;">
+
+  <!-- Desktop Sidebar -->
+  <aside class="admin-sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-dot" id="db-status-dot" title="Connection Status"></span>
+      Spencer Live
+    </div>
+    <div style="padding:0.6rem 1.25rem 0.3rem;">
+      <span class="badge badge-gray" id="dashboard-data-mode">…</span>
+    </div>
+    <nav class="sidebar-nav" id="sidebar-nav">
+      <button class="sidebar-link active" onclick="showPanel('overview')">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+          <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+        </svg>
+        Dashboard
+      </button>
+      <button class="sidebar-link" onclick="showPanel('history')">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+        </svg>
+        History
+      </button>
+
+      <button class="sidebar-link" onclick="showPanel('settings')">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        Settings
+      </button>
+    </nav>
+    <div style="padding:1rem 1.25rem;border-top:1px solid var(--card-border);">
+      <a href="index.html" style="color:var(--text-dim);font-size:0.82rem;text-decoration:none;display:flex;align-items:center;gap:0.4rem;">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+        </svg>
+        View Live Page
+      </a>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="admin-main">
+
+    <!-- ═══ PANEL: OVERVIEW (Combined Incoming + Queue) ══════ -->
+    <div class="panel active" id="panel-overview">
+      <div style="display:flex; flex-wrap:wrap; gap:1.5rem; align-items:flex-start;">
+        
+        <!-- Left: Incoming -->
+        <div style="flex:1; min-width:320px;">
+          <div class="section-header" style="margin-bottom:1rem;">
+            <h2 style="display:flex;align-items:center;gap:0.5rem;">
+              Incoming <span class="count-badge" id="pending-count-label">0</span>
+            </h2>
+          </div>
+          <div class="scroll-area" id="pending-list" style="max-height: calc(100vh - 160px);">
+            <div class="empty-state" id="pending-empty">
+              <p>No pending requests</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Queue -->
+        <div style="flex:1; min-width:320px;">
+          <div class="section-header" style="margin-bottom:1rem;">
+            <h2 style="display:flex;align-items:center;gap:0.5rem;">
+              Live Queue <span class="count-badge" id="queue-count-label" style="background:var(--accent2);color:#0a0a0f;">0</span>
+            </h2>
+            <span style="font-size:0.75rem;color:var(--text-dim);">Drag to reorder</span>
+          </div>
+          <div id="queue-list" class="scroll-area" style="max-height: calc(100vh - 160px); gap:0.6rem;">
+            <div class="empty-state" id="queue-empty">
+              <p>Queue is empty</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ═══ PANEL: HISTORY ════════════════════════════════════ -->
+    <div class="panel" id="panel-history">
+      <div class="section-header" style="margin-bottom:0.75rem;">
+        <h2>Request History</h2>
+      </div>
+      <div class="search-wrap mb-md">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="search" id="history-search" placeholder="Search songs, artists, usernames…"
+               oninput="filterHistory()" />
+      </div>
+      <div class="search-filter-row">
+        <button class="filter-chip active" data-filter="all"    onclick="setFilter(this)">All</button>
+        <button class="filter-chip"        data-filter="played"   onclick="setFilter(this)">Played</button>
+        <button class="filter-chip"        data-filter="rejected" onclick="setFilter(this)">Rejected</button>
+      </div>
+      <div id="history-list" class="scroll-area" style="gap:0.5rem;">
+        <div class="empty-state" id="history-empty">
+          <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+          </svg>
+          <p>No requests yet this session</p>
+        </div>
+      </div>
+    </div>
+
+
+
+    <!-- ═══ PANEL: SETTINGS ════════════════════════════════════ -->
+    <div class="panel" id="panel-settings">
+      <h2 style="margin-bottom:1rem;">Settings</h2>
+
+      <div class="setting-row">
+        <div class="setting-label">
+          <strong>Accept Requests</strong>
+          <span>Turn off to close the request queue</span>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="toggle-accepting" checked onchange="saveSettings()" />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <div class="card card-pad" style="margin-bottom:0.875rem;">
+        <div class="form-group" style="margin-bottom:0.875rem;">
+          <label for="live-name-input">Live Session Name</label>
+          <input type="text" id="live-name-input" placeholder="e.g. Spencer's Live 🎸" maxlength="60" />
+        </div>
+        <button class="btn btn-secondary btn-full" onclick="saveSettings()">Save Settings</button>
+      </div>
+
+      <div class="card card-pad" style="margin-bottom:0.875rem;">
+        <h3 style="margin-bottom:0.5rem;">Admin Password</h3>
+        <p style="font-size:0.82rem;color:var(--text-dim);margin-bottom:0.875rem;">
+          Change the password in <code style="background:var(--bg3);padding:1px 5px;border-radius:4px;">app.js</code> — look for <code style="background:var(--bg3);padding:1px 5px;border-radius:4px;">ADMIN_PASSWORD</code>.
+        </p>
+      </div>
+
+      <div class="card card-pad">
+        <h3 style="margin-bottom:0.5rem;">Danger Zone</h3>
+        <p style="font-size:0.82rem;color:var(--text-dim);margin-bottom:0.875rem;">
+          Clear all pending requests from the queue.
+        </p>
+        <button class="btn btn-danger btn-full btn-sm" onclick="clearAllPending()">
+          Clear All Pending
+        </button>
+      </div>
+
+      <div style="text-align:center;margin-top:1.5rem;">
+        <button class="btn btn-ghost" onclick="doLogout()">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          Log Out
+        </button>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Mobile Bottom Nav -->
+  <nav class="admin-mobile-nav">
+    <button class="mobile-nav-btn active" id="mnav-overview" onclick="showPanel('overview')">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+        <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+      </svg>
+      Dashboard
+    </button>
+    <button class="mobile-nav-btn" id="mnav-history" onclick="showPanel('history')">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+      </svg>
+      History
+    </button>
+
+    <button class="mobile-nav-btn" id="mnav-settings" onclick="showPanel('settings')">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+      Settings
+    </button>
+  </nav>
+
+</div><!-- end #dashboard -->
+
+<div id="toast-container"></div>
+
+
+<script src="app.js"></script>
+<script>
+// ─── INIT ───────────────────────────────────────────────────
+document.addEventListener("DOMContentLoaded", () => {
+  bootDashboardPage();
+});
+
+function bootDashboardPage() {
+  initSupabase();
+  setDataModeBadge();
+  if (dashboardIsLoggedIn()) {
+    showDashboard();
+  }
+}
+
+
+
+function setDataModeBadge() {
+  const el = document.getElementById("dashboard-data-mode");
+  if (!el) return;
+  const mode = window.__spencerDataMode;
+  if (mode === "supabase-realtime") {
+    el.textContent = "Cloud: Realtime";
+    el.className = "badge badge-cyan";
+  } else if (mode === "supabase-rest") {
+    el.textContent = "Cloud: REST";
+    el.className = "badge badge-gold";
+  } else {
+    el.textContent = "Cloud: Unknown";
+    el.className = "badge badge-gray";
+  }
+}
+
+const DASH_AUTH_KEY = "spencerAdminAuth";
+
+function dashboardIsLoggedIn() {
+  if (typeof isLoggedIn === "function") return isLoggedIn();
+  return sessionStorage.getItem(DASH_AUTH_KEY) === "true";
+}
+
+function dashboardLogout() {
+  if (typeof logout === "function") {
+    logout();
+    return;
+  }
+  sessionStorage.removeItem(DASH_AUTH_KEY);
+}
+
+// ─── AUTH (Direct Fix) ──────────────────────────────────────
+const STAT_PASS = "spencer2024";
+
+function doLogin() {
+  const pw = document.getElementById("login-pw").value;
+  const errorEl = document.getElementById("login-error-msg");
+  
+  // Use direct comparison for absolute reliability
+  if (pw === STAT_PASS) {
+    // Manually set auth key to avoid dependency errors
+    sessionStorage.setItem("spencerAdminAuth", "true");
+    showDashboard();
+    if (errorEl) errorEl.style.display = "none";
+  } else {
+    if (errorEl) errorEl.style.display = "block";
+    document.getElementById("login-pw").value = "";
+    document.getElementById("login-pw").focus();
+  }
+}
+
+window.doLogin = doLogin;
+
+function doLogout() {
+  dashboardLogout();
+  document.getElementById("dashboard").style.display = "none";
+  document.getElementById("login-screen").style.display = "flex";
+  document.getElementById("login-pw").value = "";
+}
+
+function showDashboard() {
+  document.getElementById("login-screen").style.display = "none";
+  document.getElementById("dashboard").style.display = "block";
+  subscribeAll();
+}
+
+// ─── PANEL NAVIGATION ───────────────────────────────────────
+var panels = ["overview","history","settings"];
+
+function showPanel(name) {
+  panels.forEach(p => {
+    document.getElementById(`panel-${p}`).classList.toggle("active", p === name);
+    const sb = document.querySelector(`.sidebar-link[onclick="showPanel('${p}')"]`);
+    if (sb) sb.classList.toggle("active", p === name);
+    const mb = document.getElementById(`mnav-${p}`);
+    if (mb) mb.classList.toggle("active", p === name);
+  });
+}
+
+// ─── STATE ──────────────────────────────────────────────────
+let allPending  = [];
+let allQueue    = [];
+let allRequests = [];
+let nowPlayingData = null;
+let settingsData   = {};
+let histFilter  = "all";
+let histSearch  = "";
+
+// ─── SUBSCRIPTIONS ──────────────────────────────────────────
+function subscribeAll() {
+  DB.onPendingChange(items => {
+    allPending = items;
+    renderPending();
+    updateCounts();
+  });
+  DB.onQueueChange(items => {
+    allQueue = items.filter(i => i.status === "approved");
+    renderQueue();
+    renderNPQueue();
+    updateCounts();
+  });
+  DB.onAllChange(items => {
+    allRequests = items;
+    renderHistory();
+    updateStats(items);
+  });
+  DB.onNowPlayingChange(np => {
+    nowPlayingData = np;
+    renderNowPlayingPanel(np);
+  });
+  DB.onSettingsChange(s => {
+    settingsData = s;
+    document.getElementById("toggle-accepting").checked = s.acceptingRequests !== false;
+    document.getElementById("live-name-input").value = s.liveName || "";
+  });
+}
+
+function updateCounts() {
+  const pc = allPending.length;
+  const qc = allQueue.length;
+  // Use optional chaining for safer updates in case elements are missing
+  const pCount = document.getElementById("pending-count-label");
+  const qCount = document.getElementById("queue-count-label");
+  if (pCount) pCount.textContent = pc;
+  if (qCount) qCount.textContent = qc;
+}
+
+function updateStats(all) {
+  document.getElementById("stat-pending").textContent = all.filter(r => r.status === "pending").length;
+  document.getElementById("stat-queued").textContent  = all.filter(r => r.status === "approved").length;
+  document.getElementById("stat-played").textContent  = all.filter(r => r.status === "played").length;
+}
+
+// ─── PENDING LIST ────────────────────────────────────────────
+function renderPending() {
+  const list  = document.getElementById("pending-list");
+  const empty = document.getElementById("pending-empty");
+  list.querySelectorAll(".req-card").forEach(c => c.remove());
+
+  if (allPending.length === 0) {
+    empty.classList.remove("hidden");
+    return;
+  }
+  empty.classList.add("hidden");
+
+  allPending.forEach(req => {
+    const card = document.createElement("div");
+    card.className = "req-card";
+    card.dataset.id = req.id;
+    card.innerHTML = `
+      <div class="req-header">
+        <div>
+          <div class="req-song">${sanitize(req.song)}</div>
+          <div class="req-artist">${sanitize(req.artist || "—")}</div>
+          <div class="req-meta">
+            <span style="font-size:1.1rem; font-weight:800; color:var(--accent2); margin-top:0.2rem; display:block;">@${sanitize(req.requester)}</span>
+            ${req.learnLater ? '<span class="badge badge-purple" style="margin-top:0.3rem;">Learn Later</span>' : ''}
+            <span style="font-size:0.72rem; color:var(--text-dimmer); margin-top:0.2rem; display:block;">${timeAgo(req.createdAt)}</span>
+          </div>
+        </div>
+      </div>
+      <div class="req-actions">
+        <button class="btn btn-success btn-sm" onclick="approve('${req.id}')">
+          ✅ Approve
+        </button>
+        <button class="btn btn-danger btn-sm" onclick="reject('${req.id}')">
+          ✗ Reject
+        </button>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+}
+
+async function approve(id) {
+  await DB.approveRequest(id);
+  showToast("Added to queue! 🎵", "success");
+}
+async function reject(id) {
+  await DB.rejectRequest(id);
+  showToast("Request rejected", "info");
+}
+
+// ─── QUEUE LIST (drag & drop) ────────────────────────────────
+let cleanupDrag = null;
+
+function renderQueue() {
+  const list  = document.getElementById("queue-list");
+  const empty = document.getElementById("queue-empty");
+  list.querySelectorAll(".queue-item").forEach(c => c.remove());
+
+  if (allQueue.length === 0) {
+    empty.classList.remove("hidden");
+    return;
+  }
+  empty.classList.add("hidden");
+
+  allQueue.forEach((item, i) => {
+    const card = document.createElement("div");
+    let specialLabel = "";
+    let specialClass = "";
+    
+    if (i === 0) {
+      specialLabel = '<div style="font-size:0.65rem; font-weight:900; letter-spacing:0.05em; color:var(--accent); margin-bottom:0.2rem; text-transform:uppercase;">▶ NOW PLAYING</div>';
+      specialClass = "now-playing-active";
+    } else if (i === 1) {
+      specialLabel = '<div style="font-size:0.65rem; font-weight:900; letter-spacing:0.05em; color:var(--accent2); margin-bottom:0.2rem; text-transform:uppercase;">⏭ UP NEXT</div>';
+    }
+
+    card.className = `queue-item song-card ${specialClass} ${item.pinned ? " pinned-item" : ""}`;
+    card.draggable = true;
+    card.dataset.id = item.id;
+    
+    // Custom style for the active playing card
+    if (i === 0) {
+      card.style.background = "linear-gradient(135deg, rgba(254,44,85,0.1), rgba(0,0,0,0.2))";
+      card.style.borderColor = "var(--accent)";
+      card.style.boxShadow = "0 0 15px rgba(254,44,85,0.15)";
+    }
+
+    card.innerHTML = `
+      <div class="song-drag" title="Drag to reorder">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <line x1="9" y1="4" x2="9" y2="20"/><line x1="15" y1="4" x2="15" y2="20"/>
+        </svg>
+      </div>
+      <div class="song-num${i === 0 ? ' playing' : ''}">${i + 1}</div>
+      <div class="song-info" style="flex:1;min-width:0;">
+        ${specialLabel}
+        <div class="song-title" style="${i === 0 ? 'font-size:1.1rem; font-weight:800;' : ''}">${sanitize(item.song)}</div>
+        <div class="song-artist">${sanitize(item.artist || "—")}</div>
+        <div class="song-meta">
+          <span style="font-size:1rem; font-weight:800; color:var(--accent2); display:block; margin:0.2rem 0;">@${sanitize(item.requester)}</span>
+          <div style="display:flex; gap:0.35rem; align-items:center; flex-wrap:wrap;">
+            ${item.pinned ? '<span class="badge badge-gold">📌 Pinned</span>' : ''}
+            ${item.learnLater ? '<span class="badge badge-purple">Learn Later</span>' : ''}
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:0.35rem;flex-shrink:0;">
+        <button class="btn btn-sm" style="background:rgba(251,191,36,0.15);color:var(--gold);border:1px solid rgba(251,191,36,0.25);"
+                onclick="pinNext('${item.id}')" title="Pin as next song">
+          📌
+        </button>
+        <button class="btn btn-primary btn-sm" onclick="markPlayed('${item.id}')" title="Mark as played (Done)">
+          ✅
+        </button>
+        <button class="btn btn-ghost btn-sm" style="padding:0.2rem; min-height:0; opacity:0.5;" onclick="removeFromQueue('${item.id}')" title="Remove">
+          ✗
+        </button>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+
+  // Enable drag & drop
+  if (cleanupDrag) cleanupDrag();
+  cleanupDrag = enableDragDrop(list, async (newOrder) => {
+    await DB.reorder(newOrder);
+  });
+}
+
+async function markPlayed(id) {
+  await DB.markPlayed(id);
+  showToast("Marked as played ✅", "success");
+}
+
+async function pinNext(id) {
+  await DB.pinNext(id);
+  showToast("Pinned as next song 📌", "success");
+}
+
+async function removeFromQueue(id) {
+  await DB.rejectRequest(id);
+  showToast("Removed from queue", "info");
+}
+
+// ─── HISTORY ────────────────────────────────────────────────
+function setFilter(btn) {
+  document.querySelectorAll(".filter-chip").forEach(c => c.classList.remove("active"));
+  btn.classList.add("active");
+  histFilter = btn.dataset.filter;
+  renderHistory();
+}
+
+function filterHistory() {
+  histSearch = document.getElementById("history-search").value.toLowerCase();
+  renderHistory();
+}
+
+function renderHistory() {
+  const list  = document.getElementById("history-list");
+  const empty = document.getElementById("history-empty");
+  list.querySelectorAll(".hist-card").forEach(c => c.remove());
+
+  let filtered = allRequests;
+  if (histFilter !== "all") filtered = filtered.filter(r => r.status === histFilter);
+  if (histSearch) {
+    filtered = filtered.filter(r =>
+      (r.song || "").toLowerCase().includes(histSearch) ||
+      (r.artist || "").toLowerCase().includes(histSearch) ||
+      (r.requester || "").toLowerCase().includes(histSearch)
+    );
+  }
+
+  if (filtered.length === 0) { empty.classList.remove("hidden"); return; }
+  empty.classList.add("hidden");
+
+  filtered.slice(0, 100).forEach(req => {
+    const card = document.createElement("div");
+    card.className = "hist-card";
+    card.innerHTML = `
+      <div style="flex:1; min-width:0;">
+        <div style="font-weight:700; font-size:1rem; color:var(--accent2); margin-bottom:0.15rem;">@${sanitize(req.requester)}</div>
+        <div style="font-weight:600; font-size:0.85rem;">${sanitize(req.song)}</div>
+        <div style="font-size:0.75rem; color:var(--text-dim);">${sanitize(req.artist || "—")} · ${timeAgo(req.createdAt)}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.3rem;flex-shrink:0;">
+        <span class="badge ${statusColor(req.status)}">${statusLabel(req.status)}</span>
+        ${req.learnLater ? '<span class="badge badge-purple" style="font-size:0.65rem;">Learn Later</span>' : ''}
+        ${req.status === 'pending' ? `
+          <div style="display:flex;gap:0.3rem;margin-top:0.25rem;">
+            <button class="btn btn-success btn-sm" style="padding:0.3rem 0.6rem;font-size:0.72rem;" onclick="approve('${req.id}')">✅</button>
+            <button class="btn btn-danger btn-sm"  style="padding:0.3rem 0.6rem;font-size:0.72rem;" onclick="reject('${req.id}')">✗</button>
+          </div>
+        ` : ''}
+      </div>
+    `;
+    list.appendChild(card);
+  });
+}
+
+function statusColor(s) {
+  if (s === "approved") return "badge-cyan";
+  if (s === "pending")  return "badge-gold";
+  if (s === "played")   return "badge-success";
+  if (s === "rejected") return "badge-red";
+  return "badge-gray";
+}
+function statusLabel(s) {
+  if (s === "approved") return "Queued";
+  if (s === "pending")  return "Pending";
+  if (s === "played")   return "Played";
+  if (s === "rejected") return "Rejected";
+  return s || "Unknown";
+}
+
+function timeAgo(ts) {
+  if (!ts) return "";
+  const ms = typeof ts === "number" ? ts : new Date(ts).getTime();
+  const diff = Math.floor((Date.now() - ms) / 1000);
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
+// ─── NOW PLAYING PANEL ───────────────────────────────────────
+function renderNowPlayingPanel(np) {
+  document.getElementById("np-current-song").textContent      = np?.song || "—";
+  document.getElementById("np-current-artist").textContent    = np?.artist || "—";
+  document.getElementById("np-current-requester").textContent = np?.requester ? `Requested by @${np.requester}` : "";
+}
+
+// ─── SETTINGS ─────────────────────────────────────────────
+async function saveSettings() {
+  const accepting = document.getElementById("toggle-accepting").checked;
+  const liveName  = document.getElementById("live-name-input").value.trim();
+  await DB.updateSettings({ acceptingRequests: accepting, liveName });
+  showToast("Settings saved ✅", "success");
+}
+
+async function clearAllPending() {
+  if (!allPending.length) { showToast("No pending requests to clear", "info"); return; }
+  if (!confirm(`Clear all ${allPending.length} pending requests?`)) return;
+  try {
+    const tasks = allPending.map(req => DB.rejectRequest(req.id));
+    await Promise.all(tasks);
+    showToast("All pending requests cleared!", "success");
+  } catch (err) {
+    console.error(err);
+    showToast("Error clearing requests", "error");
+  }
+}
+</script>
+</body>
+</html>
