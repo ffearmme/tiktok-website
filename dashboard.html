@@ -519,14 +519,73 @@ function renderPending() {
     list.appendChild(card);
   });
 }
+  allPending.forEach(r => {
+    // Paid Badges
+    let tierBadge = "";
+    if (r.tier !== "free") {
+      const tierColors = { boost: "silver", priority: "cyan", instant: "gold" };
+      let label = r.tier.toUpperCase();
+      let icon = "💰";
+      
+      if (r.tier === "boost") { label = `JUMPS ${r.tipAmount} SPOTS`; icon = "💎"; }
+      if (r.tier === "priority") { icon = "🔥"; }
+      if (r.tier === "instant") { icon = "⚡"; }
 
-async function approve(id) {
+      tierBadge = `
+        <span class="badge badge-${tierColors[r.tier] || "purple"}" style="font-weight:800;">
+          ${icon} ${label} ($${r.tipAmount})
+        </span>
+      `;
+    }
+
+    // Verification Status
+    let verifyAction = "";
+    if (r.tipAmount > 0 && !r.isVerified) {
+      verifyAction = `
+        <button class="btn btn-secondary btn-sm" onclick="verifyRequest('${r.id}')" style="background:var(--accent-gradient); border:none;">
+          Verify Payment
+        </button>
+      `;
+    }
+
+    const card = document.createElement("div");
+    card.className = `song-card ${r.tier !== 'free' ? 'paid-card' : ''} ${r.isVerified ? 'verified' : ''}`;
+    card.innerHTML = `
+      <div style="flex:1; min-width:0;">
+        <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.25rem;">
+          ${tierBadge}
+          ${r.isVerified ? '<span class="badge badge-green">✓ PAID</span>' : ''}
+          <span style="font-size:0.85rem; font-weight:700; color:var(--accent2);">@${sanitize(r.requester)}</span>
+        </div>
+        <div class="song-title">${sanitize(r.song)}</div>
+        <div class="song-artist">${sanitize(r.artist || "—")}</div>
+        <div style="font-size:0.7rem; color:var(--text-dimmer); margin-top:0.4rem;">${timeAgo(r.createdAt)}</div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:0.4rem;">
+        ${verifyAction}
+        <div style="display:flex; gap:0.4rem;">
+          <button class="btn btn-secondary btn-sm" onclick="rejectRequest('${r.id}')">Reject</button>
+          <button class="btn btn-primary btn-sm" onclick="approveRequest('${r.id}')">Approve</button>
+        </div>
+      </div>
+    `;
+    pendingList.appendChild(card);
+  });
+}
+
+async function approveRequest(id) {
   await DB.approveRequest(id);
   showToast("Added to queue! 🎵", "success");
 }
-async function reject(id) {
+async function rejectRequest(id) {
+  if (!confirm("Reject this request?")) return;
   await DB.rejectRequest(id);
-  showToast("Request rejected", "info");
+  showToast("Request rejected 🚫", "info");
+}
+
+async function verifyRequest(id) {
+  await DB.verifyRequest(id);
+  showToast("Payment Verified! 💰", "success");
 }
 
 // ─── QUEUE LIST (drag & drop) ────────────────────────────────

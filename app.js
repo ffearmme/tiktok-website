@@ -87,16 +87,20 @@ function normalizeSettingsRow(row = {}) {
   };
 }
 
-function normalizeRequestRow(row = {}) {
+function normalizeRequestRow(r) {
+  if (!r) return null;
   return {
-    id: row.id,
-    song: row.song,
-    artist: row.artist,
-    requester: row.requester,
-    status: row.status,
-    createdAt: row.created_at || row.createdAt || Date.now(),
-    learnLater: !!(row.learn_later || row.learnLater),
-    orderPos: typeof row.order_pos !== "undefined" ? row.order_pos : row.orderPos
+    id: r.id,
+    requester: r.requester || "Anonymous",
+    song: r.song || "Unknown Song",
+    artist: r.artist || "Unknown Artist",
+    learnLater: r.learn_later || false,
+    status: r.status || "pending",
+    createdAt: r.created_at || new Date().toISOString(),
+    tipAmount: r.tip_amount || 0,
+    tier: r.tier || "free", // free, boost, priority, instant
+    isVerified: r.is_verified || false,
+    orderPos: typeof r.order_pos !== "undefined" ? r.order_pos : r.orderPos
   };
 }
 
@@ -204,8 +208,18 @@ if (typeof DB === "undefined") var DB = {
     return this.onSettingsChange(s => s.now_playing_song ? cb({ song: s.now_playing_song, artist: s.now_playing_artist, requester: s.now_playing_requester }) : cb(null));
   },
   async submitRequest(req) {
+    const row = {
+      requester: req.requester,
+      song: req.song,
+      artist: req.artist,
+      learn_later: req.learnLater,
+      status: "pending",
+      tip_amount: req.tipAmount || 0,
+      tier: req.tier || "free",
+      is_verified: false,
+      order_pos: 9999
+    };
     if (isSupabaseReady) {
-      const row = { song: req.song, artist: req.artist, requester: req.requester, learn_later: !!req.learnLater, status: "pending", order_pos: 9999 };
       if (isRestApiMode) await restRequest("requests", { method: "POST", body: row });
       else await dbClient.from("requests").insert(row);
     } else {
@@ -226,21 +240,27 @@ if (typeof DB === "undefined") var DB = {
   },
   async approveRequest(id) {
     if (isSupabaseReady) {
-      if (isRestApiMode) {
-        const approved = await restRequest("requests?status=eq.approved&select=order_pos");
-        const maxPos = (approved || []).reduce((m, r) => Math.max(m, r.order_pos || 0), 0);
-        await restRequest(`requests?id=eq.${id}`, { method: "PATCH", body: { status: "approved", order_pos: maxPos + 1 } });
-      } else {
-        const { data: approved } = await dbClient.from("requests").select("order_pos").eq("status", "approved");
-        const maxPos = (approved || []).reduce((m, r) => Math.max(m, r.order_pos || 0), 0);
-        await dbClient.from("requests").update({ status: "approved", order_pos: maxPos + 1 }).eq("id", id);
+      const { data: req } = await dbClient.from("requests").select("id, tier, tip_amount").eq("id", id).single();
+      let orderPos = 10000 + (req?.id || 0);
+      if (req?.tier === "priority" || req?.tier === "instant") orderPos = 0;
+      else if (req?.tier === "boost") orderPos = (10000 + (req?.id || 0)) - (req?.tip_amount || 0);
+
+      if (isRestApiMode) await restRequest(`requests?id=eq.${id}`, { method: "PATCH", body: { status: "approved", order_pos: orderPos } });
+      else await dbClient.from("requests").update({ status: "approved", order_pos: orderPos }).eq("id", id);
+      
+      if (req?.tier === "instant") {
+        const { data: fullReq } = await dbClient.from("requests").select("*").eq("id", id).single();
+        if (fullReq) this.setNowPlaying(normalizeRequestRow(fullReq));
       }
     } else {
-      const d = localGet();
-      const approved = d.requests.filter(r => r.status === "approved");
-      const maxPos = approved.reduce((m, r) => Math.max(m, r.order_pos || 0), 0);
-      const r = d.requests.find(r => r.id === id);
-      if (r) { r.status = "approved"; r.order_pos = maxPos + 1; }
+      const d = localGet(); const r = d.requests.find(x => x.id === id); 
+      if (r) {
+        r.status = "approved";
+        let base = 10000 + r.id;
+        if (r.tier === "priority" || r.tier === "instant") r.orderPos = 0;
+        else if (r.tier === "boost") r.orderPos = base - r.tipAmount;
+        else r.orderPos = base;
+      }
       localSave(d);
     }
     _notify("requests");

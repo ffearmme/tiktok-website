@@ -684,6 +684,60 @@ input:focus, textarea:focus, select:focus {
 }
 
 /* ─── UTILS ──────────────────────────────────────────────── */
+/* Boost Cards */
+.boost-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius-md);
+  padding: 1rem 0.75rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.boost-card:hover {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.2);
+}
+.boost-card.active {
+  background: rgba(255,255,255,0.1);
+  border-color: #fff;
+  box-shadow: 0 0 15px rgba(255,255,255,0.1);
+}
+.boost-card.priority.active {
+  border-color: var(--accent2);
+  box-shadow: 0 0 15px rgba(37,244,238,0.2);
+}
+.boost-card.instant.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 15px rgba(255,60,110,0.2);
+}
+
+.boost-price { font-size: 1.1rem; font-weight: 800; color: #fff; }
+.boost-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.9; }
+.boost-desc { font-size: 0.65rem; color: var(--text-dim); line-height: 1.2; }
+
+.boost-card.priority .boost-price { color: var(--accent2); }
+.boost-card.instant .boost-price { color: var(--accent); }
+
+.paid-card {
+  border-left: 4px solid var(--accent) !important;
+  background: linear-gradient(90deg, rgba(255, 60, 110, 0.05) 0%, rgba(255,255,255,0.03) 100%) !important;
+  box-shadow: 0 4px 15px rgba(255, 60, 110, 0.1);
+}
+.paid-card.verified {
+  border-left-color: var(--accent2) !important;
+  background: linear-gradient(90deg, rgba(37, 244, 238, 0.05) 0%, rgba(255,255,255,0.03) 100%) !important;
+}
+
+.badge-silver { background: #94a3b8; color: #0f172a; }
+.badge-cyan   { background: var(--accent2); color: #0f172a; }
+.badge-gold   { background: #fbbf24; color: #78350f; }
+.badge-purple { background: #8b5cf6; color: #fff; }
+
 .hidden  { display: none !important; }
 .flex    { display: flex; }
 .gap-sm  { gap: 0.5rem; }
