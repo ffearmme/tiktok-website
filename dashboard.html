@@ -261,6 +261,17 @@
         </label>
       </div>
 
+      <div class="setting-row">
+        <div class="setting-label">
+          <strong>Require Approval</strong>
+          <span>Turn off to instantly add requests to the live queue</span>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="toggle-require-approval" checked onchange="saveLocalRequireApproval()" />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
       <div class="card card-pad" style="margin-bottom:0.875rem;">
         <div class="form-group" style="margin-bottom:0.875rem;">
           <label for="live-name-input">Live Session Name</label>
@@ -433,11 +444,19 @@ let nowPlayingData = null;
 let settingsData   = {};
 let histFilter  = "all";
 let histSearch  = "";
+let requireApproval = localStorage.getItem("spencerAdminRequireApproval") !== "false";
 
 // ─── SUBSCRIPTIONS ──────────────────────────────────────────
 function subscribeAll() {
   DB.onPendingChange(items => {
     allPending = items;
+    
+    if (!requireApproval && allPending.length > 0) {
+      allPending.forEach(req => {
+        DB.approveRequest(req.id);
+      });
+    }
+    
     renderPending();
     updateCounts();
   });
@@ -461,6 +480,9 @@ function subscribeAll() {
     document.getElementById("toggle-accepting").checked = s.acceptingRequests !== false;
     document.getElementById("live-name-input").value = s.liveName || "";
   });
+  
+  const raToggle = document.getElementById("toggle-require-approval");
+  if (raToggle) raToggle.checked = requireApproval;
 }
 
 function updateCounts() {
@@ -483,7 +505,7 @@ function updateStats(all) {
 function renderPending() {
   const list  = document.getElementById("pending-list");
   const empty = document.getElementById("pending-empty");
-  list.querySelectorAll(".req-card").forEach(c => c.remove());
+  list.querySelectorAll(".req-card, .song-card").forEach(c => c.remove());
 
   if (allPending.length === 0) {
     empty.classList.remove("hidden");
@@ -492,12 +514,31 @@ function renderPending() {
   empty.classList.add("hidden");
 
   allPending.forEach(req => {
+    // ── PAID / BOOST BADGES ──────────────────────────────
+    let tierBadge = "";
+    if (req.tier && req.tier !== "free") {
+      const tierColors = { boost: "silver", priority: "cyan", instant: "gold" };
+      let label = req.tier.toUpperCase();
+      let icon = "💰";
+      
+      if (req.tier === "boost") { label = `JUMPS ${req.tipAmount} SPOTS`; icon = "💎"; }
+      if (req.tier === "priority") { icon = "🔥"; }
+      if (req.tier === "instant") { icon = "⚡"; }
+
+      tierBadge = `
+        <span class="badge badge-${tierColors[req.tier] || "purple"}" style="font-weight:800; margin-bottom:0.4rem; display:inline-block;">
+          ${icon} ${label} ($${req.tipAmount})
+        </span>
+      `;
+    }
+
     const card = document.createElement("div");
     card.className = "req-card";
     card.dataset.id = req.id;
     card.innerHTML = `
       <div class="req-header">
-        <div>
+        <div style="flex:1;">
+          ${tierBadge}
           <div class="req-song">${sanitize(req.song)}</div>
           <div class="req-artist">${sanitize(req.artist || "—")}</div>
           <div class="req-meta">
@@ -508,10 +549,10 @@ function renderPending() {
         </div>
       </div>
       <div class="req-actions">
-        <button class="btn btn-success btn-sm" onclick="approve('${req.id}')">
+        <button class="btn btn-success btn-sm" onclick="approveRequest('${req.id}')">
           ✅ Approve
         </button>
-        <button class="btn btn-danger btn-sm" onclick="reject('${req.id}')">
+        <button class="btn btn-danger btn-sm" onclick="rejectRequest('${req.id}')">
           ✗ Reject
         </button>
       </div>
@@ -519,59 +560,7 @@ function renderPending() {
     list.appendChild(card);
   });
 }
-  allPending.forEach(r => {
-    // Paid Badges
-    let tierBadge = "";
-    if (r.tier !== "free") {
-      const tierColors = { boost: "silver", priority: "cyan", instant: "gold" };
-      let label = r.tier.toUpperCase();
-      let icon = "💰";
-      
-      if (r.tier === "boost") { label = `JUMPS ${r.tipAmount} SPOTS`; icon = "💎"; }
-      if (r.tier === "priority") { icon = "🔥"; }
-      if (r.tier === "instant") { icon = "⚡"; }
 
-      tierBadge = `
-        <span class="badge badge-${tierColors[r.tier] || "purple"}" style="font-weight:800;">
-          ${icon} ${label} ($${r.tipAmount})
-        </span>
-      `;
-    }
-
-    // Verification Status
-    let verifyAction = "";
-    if (r.tipAmount > 0 && !r.isVerified) {
-      verifyAction = `
-        <button class="btn btn-secondary btn-sm" onclick="verifyRequest('${r.id}')" style="background:var(--accent-gradient); border:none;">
-          Verify Payment
-        </button>
-      `;
-    }
-
-    const card = document.createElement("div");
-    card.className = `song-card ${r.tier !== 'free' ? 'paid-card' : ''} ${r.isVerified ? 'verified' : ''}`;
-    card.innerHTML = `
-      <div style="flex:1; min-width:0;">
-        <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.25rem;">
-          ${tierBadge}
-          ${r.isVerified ? '<span class="badge badge-green">✓ PAID</span>' : ''}
-          <span style="font-size:0.85rem; font-weight:700; color:var(--accent2);">@${sanitize(r.requester)}</span>
-        </div>
-        <div class="song-title">${sanitize(r.song)}</div>
-        <div class="song-artist">${sanitize(r.artist || "—")}</div>
-        <div style="font-size:0.7rem; color:var(--text-dimmer); margin-top:0.4rem;">${timeAgo(r.createdAt)}</div>
-      </div>
-      <div style="display:flex; flex-direction:column; gap:0.4rem;">
-        ${verifyAction}
-        <div style="display:flex; gap:0.4rem;">
-          <button class="btn btn-secondary btn-sm" onclick="rejectRequest('${r.id}')">Reject</button>
-          <button class="btn btn-primary btn-sm" onclick="approveRequest('${r.id}')">Approve</button>
-        </div>
-      </div>
-    `;
-    pendingList.appendChild(card);
-  });
-}
 
 async function approveRequest(id) {
   await DB.approveRequest(id);
@@ -727,8 +716,8 @@ function renderHistory() {
         ${req.learnLater ? '<span class="badge badge-purple" style="font-size:0.65rem;">Learn Later</span>' : ''}
         ${req.status === 'pending' ? `
           <div style="display:flex;gap:0.3rem;margin-top:0.25rem;">
-            <button class="btn btn-success btn-sm" style="padding:0.3rem 0.6rem;font-size:0.72rem;" onclick="approve('${req.id}')">✅</button>
-            <button class="btn btn-danger btn-sm"  style="padding:0.3rem 0.6rem;font-size:0.72rem;" onclick="reject('${req.id}')">✗</button>
+            <button class="btn btn-success btn-sm" style="padding:0.3rem 0.6rem;font-size:0.72rem;" onclick="approveRequest('${req.id}')">✅</button>
+            <button class="btn btn-danger btn-sm"  style="padding:0.3rem 0.6rem;font-size:0.72rem;" onclick="rejectRequest('${req.id}')">✗</button>
           </div>
         ` : ''}
       </div>
@@ -775,6 +764,19 @@ async function saveSettings() {
   const liveName  = document.getElementById("live-name-input").value.trim();
   await DB.updateSettings({ acceptingRequests: accepting, liveName });
   showToast("Settings saved ✅", "success");
+}
+
+function saveLocalRequireApproval() {
+  const toggle = document.getElementById("toggle-require-approval");
+  requireApproval = toggle.checked;
+  localStorage.setItem("spencerAdminRequireApproval", requireApproval ? "true" : "false");
+  showToast(requireApproval ? "Requests will be held for review" : "Requests will jump straight to queue", "info");
+  
+  if (!requireApproval && allPending.length > 0) {
+    allPending.forEach(req => {
+      DB.approveRequest(req.id);
+    });
+  }
 }
 
 async function clearAllPending() {

@@ -1,0 +1,24 @@
+{
+  "name": "tiktok-website",
+  "version": "1.0.0",
+  "description": "A sleek, real-time song request dashboard for TikTok creators. Features a fan-facing request portal and a unified \"Control Center\" for the creator.",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ffearmme/tiktok-website.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ffearmme/tiktok-website/issues"
+  },
+  "homepage": "https://github.com/ffearmme/tiktok-website#readme",
+  "dependencies": {
+    "stripe": "^22.0.2"
+  }
+}

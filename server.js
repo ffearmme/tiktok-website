@@ -26,8 +26,9 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // 2. Default to index.html if looking at the root
+  // 2. Default paths
   if (urlPath === '/') urlPath = '/index.html';
+  if (urlPath === '/admin') urlPath = '/dashboard.html';
 
   // 3. Normalize and lock path to this directory
   const normalized = path.normalize(urlPath).replace(/^([\\/])+/, '');
@@ -63,7 +64,7 @@ server.listen(PORT, () => {
   console.log(`\x1b[32m%s\x1b[0m`, `✔ Spencer Live Server is running!`);
   console.log(`-------------------------------------------`);
   console.log(`Fan Page:  http://localhost:${PORT}/index.html`);
-  console.log(`Dashboard: http://localhost:${PORT}/dashboard.html`);
+  console.log(`Dashboard: http://localhost:${PORT}/admin`);
   console.log(`-------------------------------------------`);
   console.log(`(Press Ctrl+C to stop the server)`);
 });
