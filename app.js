@@ -216,12 +216,15 @@ if (typeof DB === "undefined") var DB = {
       status: "pending",
       tip_amount: req.tipAmount || 0,
       tier: req.tier || "free",
-      is_verified: false,
       order_pos: 9999
     };
     if (isSupabaseReady) {
-      if (isRestApiMode) await restRequest("requests", { method: "POST", body: row });
-      else await dbClient.from("requests").insert(row);
+      if (isRestApiMode) {
+        await restRequest("requests", { method: "POST", body: row });
+      } else {
+        const { error } = await dbClient.from("requests").insert(row);
+        if (error) throw error;
+      }
     } else {
       const d = localGet(); d.requests.push(Object.assign({}, req, { id: Date.now(), status: "pending", created_at: Date.now() })); localSave(d);
     }
