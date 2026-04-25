@@ -446,6 +446,8 @@ let histFilter  = "all";
 let histSearch  = "";
 let requireApproval = localStorage.getItem("spencerAdminRequireApproval") !== "false";
 
+let autoApprovedIds = new Set();
+
 // ─── SUBSCRIPTIONS ──────────────────────────────────────────
 function subscribeAll() {
   DB.onPendingChange(items => {
@@ -453,7 +455,10 @@ function subscribeAll() {
     
     if (!requireApproval && allPending.length > 0) {
       allPending.forEach(req => {
-        DB.approveRequest(req.id);
+        if (!autoApprovedIds.has(req.id)) {
+          autoApprovedIds.add(req.id);
+          DB.approveRequest(req.id);
+        }
       });
     }
     
@@ -774,7 +779,10 @@ function saveLocalRequireApproval() {
   
   if (!requireApproval && allPending.length > 0) {
     allPending.forEach(req => {
-      DB.approveRequest(req.id);
+      if (!autoApprovedIds.has(req.id)) {
+        autoApprovedIds.add(req.id);
+        DB.approveRequest(req.id);
+      }
     });
   }
 }

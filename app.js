@@ -244,9 +244,9 @@ if (typeof DB === "undefined") var DB = {
   async approveRequest(id) {
     if (isSupabaseReady) {
       const { data: req } = await dbClient.from("requests").select("id, tier, tip_amount").eq("id", id).single();
-      let orderPos = 10000 + (req?.id || 0);
-      if (req?.tier === "priority" || req?.tier === "instant") orderPos = 0;
-      else if (req?.tier === "boost") orderPos = (10000 + (req?.id || 0)) - (req?.tip_amount || 0);
+      let orderPos = Date.now();
+      if (req?.tier === "priority" || req?.tier === "instant") orderPos = -1;
+      else if (req?.tier === "boost") orderPos = Date.now() - ((req?.tip_amount || 0) * 10000);
 
       if (isRestApiMode) await restRequest(`requests?id=eq.${id}`, { method: "PATCH", body: { status: "approved", order_pos: orderPos } });
       else await dbClient.from("requests").update({ status: "approved", order_pos: orderPos }).eq("id", id);
@@ -256,12 +256,12 @@ if (typeof DB === "undefined") var DB = {
         if (fullReq) this.setNowPlaying(normalizeRequestRow(fullReq));
       }
     } else {
-      const d = localGet(); const r = d.requests.find(x => x.id === id); 
+      const d = localGet(); const r = d.requests.find(x => String(x.id) === String(id)); 
       if (r) {
         r.status = "approved";
-        let base = 10000 + r.id;
-        if (r.tier === "priority" || r.tier === "instant") r.orderPos = 0;
-        else if (r.tier === "boost") r.orderPos = base - r.tipAmount;
+        let base = Date.now();
+        if (r.tier === "priority" || r.tier === "instant") r.orderPos = -1;
+        else if (r.tier === "boost") r.orderPos = base - ((r.tipAmount || 0) * 10000);
         else r.orderPos = base;
       }
       localSave(d);
@@ -307,7 +307,7 @@ if (typeof DB === "undefined") var DB = {
       if (isRestApiMode) await restRequest(`requests?id=eq.${id}`, { method: "PATCH", body: { status: "rejected" } });
       else await dbClient.from("requests").update({ status: "rejected" }).eq("id", id);
     } else {
-      const d = localGet(); const r = d.requests.find(x => x.id === id); if (r) r.status = "rejected"; localSave(d);
+      const d = localGet(); const r = d.requests.find(x => String(x.id) === String(id)); if (r) r.status = "rejected"; localSave(d);
     }
     _notify("requests");
   },
@@ -316,7 +316,7 @@ if (typeof DB === "undefined") var DB = {
       if (isRestApiMode) await restRequest(`requests?id=eq.${id}`, { method: "PATCH", body: { status: "played" } });
       else await dbClient.from("requests").update({ status: "played" }).eq("id", id);
     } else {
-      const d = localGet(); const r = d.requests.find(x => x.id === id); if (r) r.status = "played"; localSave(d);
+      const d = localGet(); const r = d.requests.find(x => String(x.id) === String(id)); if (r) r.status = "played"; localSave(d);
     }
     _notify("requests");
   },
