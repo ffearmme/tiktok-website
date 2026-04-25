@@ -180,7 +180,7 @@ if (typeof DB === "undefined") var DB = {
   onQueueChange(cb) {
     if (isSupabaseReady) {
       _listeners.queue.push(cb); _ensureRealtime(); _fetchQueue().then(cb);
-      if (isRestApiMode) setInterval(() => _fetchQueue().then(cb), 2000);
+      setInterval(() => _fetchQueue().then(cb), isRestApiMode ? 2000 : 4000);
     } else {
       const poll = () => cb((localGet().requests || []).filter(r => r.status === "approved" || r.status === "playing").sort((a, b) => (a.order_pos || 0) - (b.order_pos || 0)).map(normalizeRequestRow));
       poll(); setInterval(poll, 1500); if (bc) bc.onmessage = poll;
@@ -189,7 +189,7 @@ if (typeof DB === "undefined") var DB = {
   onPendingChange(cb) {
     if (isSupabaseReady) {
       _listeners.pending.push(cb); _ensureRealtime(); _fetchPending().then(cb);
-      if (isRestApiMode) setInterval(() => _fetchPending().then(cb), 2000);
+      setInterval(() => _fetchPending().then(cb), isRestApiMode ? 2000 : 4000);
     } else {
       const poll = () => cb((localGet().requests || []).filter(r => r.status === "pending").map(normalizeRequestRow));
       poll(); setInterval(poll, 1500); if (bc) bc.onmessage = poll;
@@ -198,7 +198,7 @@ if (typeof DB === "undefined") var DB = {
   onSettingsChange(cb) {
     if (isSupabaseReady) {
       _listeners.settings.push(cb); _ensureRealtime(); _fetchSettings().then(cb);
-      if (isRestApiMode) setInterval(() => _fetchSettings().then(cb), 2000);
+      setInterval(() => _fetchSettings().then(cb), isRestApiMode ? 2000 : 4000);
     } else {
       const poll = () => cb(normalizeSettingsRow(localGet().settings || {}));
       poll(); setInterval(poll, 2000); if (bc) bc.onmessage = poll;
@@ -232,7 +232,7 @@ if (typeof DB === "undefined") var DB = {
   onAllChange(cb) {
     if (isSupabaseReady) {
       _listeners.all.push(cb); _ensureRealtime(); _fetchHistory().then(cb).catch(e => console.error(e));
-      if (isRestApiMode) setInterval(() => _fetchHistory().then(cb).catch(e => console.error(e)), 5000);
+      setInterval(() => _fetchHistory().then(cb).catch(e => console.error(e)), isRestApiMode ? 5000 : 8000);
     } else {
       const poll = () => {
         const items = (localGet().requests || []).sort((a,b) => b.id - a.id).map(normalizeRequestRow);
@@ -244,9 +244,9 @@ if (typeof DB === "undefined") var DB = {
   async approveRequest(id) {
     if (isSupabaseReady) {
       const { data: req } = await dbClient.from("requests").select("id, tier, tip_amount").eq("id", id).single();
-      let orderPos = Date.now();
+      let orderPos = Math.floor((Date.now() - 1770000000000) / 100);
       if (req?.tier === "priority" || req?.tier === "instant") orderPos = -1;
-      else if (req?.tier === "boost") orderPos = Date.now() - ((req?.tip_amount || 0) * 10000);
+      else if (req?.tier === "boost") orderPos = orderPos - ((req?.tip_amount || 0) * 1000);
 
       if (isRestApiMode) await restRequest(`requests?id=eq.${id}`, { method: "PATCH", body: { status: "approved", order_pos: orderPos } });
       else await dbClient.from("requests").update({ status: "approved", order_pos: orderPos }).eq("id", id);
@@ -259,9 +259,9 @@ if (typeof DB === "undefined") var DB = {
       const d = localGet(); const r = d.requests.find(x => String(x.id) === String(id)); 
       if (r) {
         r.status = "approved";
-        let base = Date.now();
+        let base = Math.floor((Date.now() - 1770000000000) / 100);
         if (r.tier === "priority" || r.tier === "instant") r.orderPos = -1;
-        else if (r.tier === "boost") r.orderPos = base - ((r.tipAmount || 0) * 10000);
+        else if (r.tier === "boost") r.orderPos = base - ((r.tipAmount || 0) * 1000);
         else r.orderPos = base;
       }
       localSave(d);
