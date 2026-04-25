@@ -18,7 +18,6 @@ module.exports = async (req, res) => {
     const unitAmountCents = Math.round(amount * 100);
 
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card', 'apple_pay', 'google_pay'],
       line_items: [
         {
           price_data: {
